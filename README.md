@@ -25,6 +25,23 @@ lost on reboot.
 This repo uses a custom 1 MB table that takes space from the unused end of the FW partition and gives PSM **32 KB**
 (same as the 2 MB layout).
 
+## What about the regular 2 MB release?
+
+The regular `OpenBL602_*.bin` is the same firmware (the 1 MB flash define is already on), so it boots on 1 MB parts,
+and people report it working. The catch is the 2 MB partition table: a 1 MB SPI flash ignores the address bit it does
+not have, so every address above 1 MB wraps around:
+
+| 2 MB partition | Declared | Lands on a 1 MB flash at | Result |
+|---|---|---|---|
+| FW | `0x10000`–`0xE7FFF` | same | OK |
+| PSM | `0x1E9000`, 32 KB | `0xE9000`–`0xF0FFF` (free space) | OK, which is why the config saves |
+| factory | `0x1F8000` | `0xF8000` | OK |
+| media (LittleFS) | `0x1A2000`, 284 KB | `0xA2000`–`0xE8FFF`, **on top of the firmware** | creating `autoexec.bat` or any script overwrites firmware code |
+| FW OTA slot | `0xE8000`, 544 KB | wraps to `0x00000`–`0x6FFFF`, **over boot2, the partition table and the firmware** | an OTA update bricks the device (UART reflash needed) |
+
+So the 2 MB release is fine if you only use pins and MQTT, but scripts or OTA will break it. The table in this repo
+keeps media and PSM outside the firmware and has no OTA slot.
+
 ## Partition layout
 
 | Partition | Address | Size | Notes |
